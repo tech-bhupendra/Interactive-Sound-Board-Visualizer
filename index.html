@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Retro Synth Pad & Visualizer</title>
+    <style>
+        body {
+            margin: 0;
+            background: #0b0f19;
+            color: #f8fafc;
+            font-family: system-ui, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            overflow: hidden;
+        }
+        h1 { margin-bottom: 5px; color: #a78bfa; font-size: 1.8rem; }
+        p { color: #94a3b8; margin-top: 0; margin-bottom: 25px; }
+        .pad-container {
+            display: grid;
+            grid-template-columns: repeat(3, 100px);
+            gap: 15px;
+            margin-bottom: 30px;
+            z-index: 10;
+        }
+        .pad {
+            width: 100px;
+            height: 100px;
+            background: #1e293b;
+            border: 2px solid #334155;
+            border-radius: 12px;
+            cursor: pointer;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            transition: all 0.1s ease;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+        }
+        .pad:active { transform: scale(0.95); }
+        .pad[data-sound="laser"] { border-color: #f43f5e; color: #f43f5e; }
+        .pad[data-sound="laser"].active { background: #f43f5e; color: #fff; box-shadow: 0 0 20px #f43f5e; }
+        .pad[data-sound="jump"] { border-color: #10b981; color: #10b981; }
+        .pad[data-sound="jump"].active { background: #10b981; color: #fff; box-shadow: 0 0 20px #10b981; }
+        .pad[data-sound="explosion"] { border-color: #f59e0b; color: #f59e0b; }
+        .pad[data-sound="explosion"].active { background: #f59e0b; color: #fff; box-shadow: 0 0 20px #f59e0b; }
+        canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 1;
+            pointer-events: none;
+        }
+    </style>
+</head>
+<body>
+    <canvas id="visualizer"></canvas>
+    
+    <h1>Retro Synth Pad</h1>
+    <p>Click pads or press keys 1, 2, or 3 to trigger synthesized sounds</p>
+
+    <div class="pad-container">
+        <div class="pad" data-sound="laser" id="pad1">LASER<br>[ 1 ]</div>
+        <div class="pad" data-sound="jump" id="pad2">JUMP<br>[ 2 ]</div>
+        <div class="pad" data-sound="explosion" id="pad3">BOOM<br>[ 3 ]</div>
+    </div>
+
+    <script>
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        const canvas = document.getElementById('visualizer');
+        const ctx = canvas.getContext('2d');
+        
+        let ripples = [];
+
+        function resizeCanvas() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+        }
+        window.addEventListener('resize', resizeCanvas);
+        resizeCanvas();
+
+        function createRipple(color) {
+            ripples.push({
+                x: canvas.width / 2,
+                y: canvas.height / 2,
+                radius: 0,
+                maxRadius: Math.max(canvas.width, canvas.height) * 0.6,
+                opacity: 1,
+                color: color
+            });
+        }
+
+        function playSound(type) {
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+            
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+            
+            const now = audioCtx.currentTime;
+
+            if (type === 'laser') {
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(880, now);
+                osc.frequency.exponentialRampToValueAtTime(110, now + 0.3);
+                gain.gain.setValueAtTime(0.3, now);
+                gain.gain.linearRampToValueAtTime(0.01, now + 0.3);
+                osc.start(now);
+                osc.stop(now + 0.3);
+                createRipple('#f43f5e');
+            } else if (type === 'jump') {
+                osc.type = 'triangle';
+                osc.frequency.setValueAtTime(150, now);
+                osc.frequency.exponentialRampToValueAtTime(600, now + 0.25);
+                gain.gain.setValueAtTime(0.4, now);
+                gain.gain.linearRampToValueAtTime(0.01, now + 0.25);
+                osc.start(now);
+                osc.stop(now + 0.25);
+                createRipple('#10b981');
+            } else if (type === 'explosion') {
+                osc.type = 'square';
+                osc.frequency.setValueAtTime(100, now);
+                osc.frequency.linearRampToValueAtTime(20, now + 0.6);
+                gain.gain.setValueAtTime(0.5, now);
+                gain.gain.exponentialRampToValueAtTime(0.01, now + 0.6);
+                osc.start(now);
+                osc.stop(now + 0.6);
+                createRipple('#f59e0b');
+            }
+        }
+
+        function triggerPad(id, type) {
+            const pad = document.getElementById(id);
+            pad.classList.add('active');
+            playSound(type);
+            setTimeout(() => pad.classList.remove('active'), 150);
+        }
+
+        document.getElementById('pad1').addEventListener('click', () => triggerPad('pad1', 'laser'));
+        document.getElementById('pad2').addEventListener('click', () => triggerPad('pad2', 'jump'));
+        document.getElementById('pad3').addEventListener('click', () => triggerPad('pad3', 'explosion'));
+
+        window.addEventListener('keydown', (e) => {
+            if (e.key === '1') triggerPad('pad1', 'laser');
+            if (e.key === '2') triggerPad('pad2', 'jump');
+            if (e.key === '3') triggerPad('pad3', 'explosion');
+        });
+
+        function animate() {
+            ctx.fillStyle = 'rgba(11, 15, 25, 0.2)';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            ripples.forEach((ripple, index) => {
+                ripple.radius += 8;
+                ripple.opacity -= 0.02;
+                
+                if (ripple.opacity <= 0) {
+                    ripples.splice(index, 1);
+                    return;
+                }
+                
+                ctx.beginPath();
+                ctx.arc(ripple.x, ripple.y, ripple.radius, 0, Math.PI * 2);
+                ctx.strokeStyle = ripple.color;
+                ctx.globalAlpha = ripple.opacity;
+                ctx.lineWidth = 4;
+                ctx.stroke();
+                ctx.globalAlpha = 1;
+            });
+            
+            requestAnimationFrame(animate);
+        }
+        animate();
+    </script>
+</body>
+</html>
